@@ -114,11 +114,11 @@ app.get('/nearest', cors(corsOptions), function(req, res, next){
  *
  */
 var interval = configs.pingDataInterval || 900000
-// setInterval(function(){
+setInterval(function(){
 
-// 	run(moment.utc());
+	run(moment.utc());
 
-// }, interval);
+}, interval);
 
 
 
@@ -148,11 +148,14 @@ function run(targetMoment){
 function getGribData(targetMoment){
 
 	var deferred = Q.defer();
+	const days = configs?.init?.days || 2
+	const interval = configs?.init?.getLastDataInterval || 20000
 
 	function runQuery(targetMoment){
 
+
         // only go 2 weeks deep
-		if (moment.utc().diff(targetMoment, 'days') > 30){
+		if (moment.utc().diff(targetMoment, 'days') > days){
 	        console.log('hit limit, harvest complete or there is a big gap in data..');
             return;
         }
@@ -160,27 +163,30 @@ function getGribData(targetMoment){
 		var stamp = moment(targetMoment).format('YYYYMMDD') + roundHours(moment(targetMoment).hour(), 6);
 		console.log('curTime:' + stamp)
 
+		var params = {
+			file: 'gfs.t'+ roundHours(moment(targetMoment).hour(), 6) +'z.pgrb2.1p00.f000',
+			lev_10_m_above_ground: 'on',
+			lev_surface: 'on',
+			var_TMP: 'on',
+			var_UGRD: 'on',
+			var_VGRD: 'on',
+			leftlon: 0,
+			rightlon: 360,
+			toplat: 90,
+			bottomlat: -90,
+			dir: `/gfs.${moment(targetMoment).format('YYYYMMDD')}/${roundHours(moment(targetMoment).hour(), 6)}/atmos`
+		}
+
+		console.log('查询',params) 
+
 		request.get({
 			url: baseDir,
-			qs: {
-				file: 'gfs.t'+ roundHours(moment(targetMoment).hour(), 6) +'z.pgrb2.1p00.f000',
-				lev_10_m_above_ground: 'on',
-				lev_surface: 'on',
-				var_TMP: 'on',
-				var_UGRD: 'on',
-				var_VGRD: 'on',
-				leftlon: 0,
-				rightlon: 360,
-				toplat: 90,
-				bottomlat: -90,
-				dir: '/gfs.'+ moment(targetMoment).format('YYYYMMDD') + '/' + roundHours(moment(targetMoment).hour(), 6)
-			}
-
+			qs: params
 		}).on('error', function(err){
 			console.log(err);
 			setTimeout(function(){
 				runQuery(moment(targetMoment).subtract(6, 'hours'));
-			}, 3000)
+			}, interval)
 		}).on('response', function(response) {
 
 			console.log('response '+response.statusCode + ' | '+stamp);
